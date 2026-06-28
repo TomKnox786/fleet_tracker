@@ -37,7 +37,11 @@ def dashboard():
 
 @app.route('/update_location', methods=['POST'])
 def update_location():
-    data = request.json
+   data = request.get_json(silent=True)
+
+if not data:
+    data = request.form
+
 
     new_location = Truck(
         truck_id=data['truck_id'],
