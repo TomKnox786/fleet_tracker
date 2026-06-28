@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fleet Tracker Dashboard</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            font-family: Arial, sans-serif;
+        }
+
+        #sidebar {
+            width: 300px;
+            background: #1e293b;
+            color: white;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        #sidebar h2 {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .section-title {
+            margin-top: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border-bottom: 1px solid gray;
+            padding-bottom: 5px;
+        }
+
+        .truck-item, .report-item {
+            padding: 8px;
+            background: #334155;
+            margin-bottom: 8px;
+            border-radius: 5px;
+        }
+
+        #map {
+            flex: 1;
+            height: 100vh;
+        }
+
+        small { line-height: 1.3; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>🚛 Fleet System</h2>
+
+    <div class="section-title">Live Fleet</div>
+    <div id="truckList"></div>
+
+    <div class="section-title">Daily Report (Today)</div>
+    <div id="reportList"></div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+    var map = L.map('map').setView([-15.3875, 28.3228], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    var markers = {};
+    var polylines = {};
+
+    function loadTrucks() {
+        fetch('/get_locations')
+            .then(response => response.json())
+            .then(data => {
+
+                document.getElementById("truckList").innerHTML = "";
+
+                Object.keys(data).forEach(truck_id => {
+
+                    var positions = data[truck_id];
+                    if (positions.length === 0) return;
+
+                    var latest = positions[0];
+                    var status = latest.status;
+                    var geofence = latest.geofence;
+                    var lastUpdate = latest.timestamp;
+
+                    if (markers[truck_id]) {
+                        markers[truck_id].setLatLng([latest.latitude, latest.longitude]);
+                    } else {
+                        markers[truck_id] = L.marker([latest.latitude, latest.longitude])
+                            .addTo(map)
+                            .bindPopup("Truck: " + truck_id);
+                    }
+
+                    var latlngs = positions.map(p => [p.latitude, p.longitude]);
+
+                    if (polylines[truck_id]) {
+                        polylines[truck_id].setLatLngs(latlngs);
+                    } else {
+                        polylines[truck_id] = L.polyline(latlngs, {color: 'blue'})
+                            .addTo(map);
+                    }
+
+                    var truckDiv = document.createElement("div");
+                    truckDiv.className = "truck-item";
+
+                    var color = status === "Online" ? "lime" : "red";
+                    var geoColor = geofence === "Inside Depot" ? "cyan" : "orange";
+
+                    truckDiv.innerHTML =
+                        "<strong>" + truck_id + "</strong><br>" +
+                        "<small style='color:" + color + "'>" + status + "</small><br>" +
+                        "<small style='color:" + geoColor + "'>" + geofence + "</small><br>" +
+                        "<small>Last: " + lastUpdate + "</small>";
+
+                    document.getElementById("truckList").appendChild(truckDiv);
+
+                });
+
+            });
+    }
+
+    function loadReport() {
+        fetch('/daily_report')
+            .then(response => response.json())
+            .then(data => {
+
+                document.getElementById("reportList").innerHTML = "";
+
+                Object.keys(data).forEach(truck_id => {
+
+                    var r = data[truck_id];
+
+                    var reportDiv = document.createElement("div");
+                    reportDiv.className = "report-item";
+
+                    reportDiv.innerHTML =
+                        "<strong>" + truck_id + "</strong><br>" +
+                        "<small>Distance: " + r.total_distance_km + " km</small><br>" +
+                        "<small>Start: " + r.start_time + "</small><br>" +
+                        "<small>End: " + r.end_time + "</small><br>" +
+                        "<small>Active: " + r.active_hours + " hrs</small>";
+
+                    document.getElementById("reportList").appendChild(reportDiv);
+                });
+
+            });
+    }
+
+    loadTrucks();
+    loadReport();
+
+    setInterval(loadTrucks, 5000);
+    setInterval(loadReport, 15000);
+
+</script>
+
+</body>
+</html>
