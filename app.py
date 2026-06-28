@@ -35,18 +35,17 @@ with app.app_context():
 def dashboard():
     return render_template('index.html')
 
-@app.route('/update_location', methods=['POST'])
+@app.route('/update_location', methods=['GET', 'POST'])
 def update_location():
-   data = request.get_json(silent=True)
-
-if not data:
-    data = request.form
-
+    if request.method == 'GET':
+        data = request.args
+    else:
+        data = request.form
 
     new_location = Truck(
-        truck_id=data['truck_id'],
-        latitude=data['latitude'],
-        longitude=data['longitude']
+        truck_id=data.get('truck_id'),
+        latitude=float(data.get('latitude')),
+        longitude=float(data.get('longitude'))
     )
 
     db.session.add(new_location)
